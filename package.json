@@ -1,0 +1,31 @@
+{
+  "name": "web-template",
+  "version": "1.0.0",
+  "author": "rikzun",
+  "type": "module",
+  "scripts": {
+    "start": "cross-env rspack serve",
+    "build": "cross-env NODE_ENV=production rspack build"
+  },
+  "dependencies": {
+    "mitt": "^3.0.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@rspack/cli": "^2.0.6",
+    "@rspack/core": "^2.0.6",
+    "@rspack/dev-server": "^2.0.3",
+    "@rspack/plugin-react-refresh": "^2.0.1",
+    "@svgr/webpack": "^8.1.0",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "cross-env": "^10.1.0",
+    "react-refresh": "^0.18.0",
+    "sass-embedded": "^1.100.0",
+    "sass-loader": "^17.0.0",
+    "ts-checker-rspack-plugin": "^1.3.1",
+    "typescript": "^6.0.3"
+  }
+}

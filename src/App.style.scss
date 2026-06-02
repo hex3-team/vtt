@@ -1,0 +1,34 @@
+body {
+    margin: 0;
+    height: 100vh;
+    width: 100vw;
+
+    > #root {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: inherit;
+        width: inherit;
+
+        > .container {
+            display: flex;
+            position: relative;
+            height: inherit;
+            width: inherit;
+
+            > .logo {
+                position: absolute;
+                z-index: 1;
+                height: 100px;
+                width: 100px;
+                left: 1rem;
+                top: 1rem;
+            }
+
+            > video {
+                width: inherit;
+                background-color: black;
+            }
+        }
+    }
+}
