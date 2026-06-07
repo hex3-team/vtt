@@ -1,0 +1,22 @@
+{
+  "name": "vtt-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "build/index.js",
+  "scripts": {
+    "start": "ts-node ./src/index.ts",
+    "build": "tsc"
+  },
+  "author": "rikzun",
+  "license": "MIT",
+  "dependencies": {
+    "tslib": "^2.8.1",
+    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.44.0",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^6.0.3"
+  }
+}
