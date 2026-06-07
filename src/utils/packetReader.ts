@@ -72,7 +72,7 @@ export class PacketReader {
     /** UTF-8 string up to 65 535 bytes long · 2 + N bytes */
     str(): string {
         const len = this.u16()
-        const bytes = new Uint8Array(this.view.buffer, this.pos + 1, len)
+        const bytes = new Uint8Array(this.view.buffer, this.view.byteOffset + this.pos, len)
         this.pos += len
         return decoder.decode(bytes)
     }
