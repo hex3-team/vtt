@@ -1,14 +1,14 @@
-import { SocketBuilder } from "@utils/socket"
-import { ByteInput, ByteOutput } from "./types/socket"
+import { SocketBuilder } from "./impl"
+import { ByteInput, ByteOutput } from "./types"
 
-function byteChannelExtractor(message: ArrayBuffer) {
+function byteExtractor(message: ArrayBuffer) {
     const type = new Uint8Array(message)[0]
     const payload = new DataView(message, 1, message.byteLength - 1)
 
     return { type, payload }
 }
 
-function byteChannelInjector(type: ByteOutput, payload: ArrayBuffer) {
+function byteInjector(type: ByteOutput, payload: ArrayBuffer) {
     const buffer = new ArrayBuffer(1 + payload.byteLength)
     const message = new Uint8Array(buffer)
 
@@ -20,5 +20,5 @@ function byteChannelInjector(type: ByteOutput, payload: ArrayBuffer) {
 
 export const socket = new SocketBuilder("ws://localhost:3001/api/ws")
     .autoReconnect()
-    .byteChannelHandler<ByteInput, ByteOutput>(byteChannelExtractor, byteChannelInjector)
+    .byteHandler<ByteInput, ByteOutput>(byteExtractor, byteInjector)
     .build()
