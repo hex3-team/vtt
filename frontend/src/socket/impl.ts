@@ -2,72 +2,65 @@ import { Deferred } from "@utils/deferred"
 import { useEffect } from "react"
 import mitt from "mitt"
 
-type ByteTypeExtractorValue = { type: number, payload: DataView }
-type ByteTypeExtractor = (message: ArrayBuffer) => ByteTypeExtractorValue
+export interface ExtractorValue<T, P> {
+    type: T
+    payload: P
+}
 
-type ByteTypeInjector<T extends number> = (type: T, payload: ArrayBuffer) => ArrayBuffer
+abstract class BaseHandler<I, O, M, P, ET, EP, IV> {
+    declare private _input: I;
+    declare private _output: O;
 
-type TextTypeExtractorValue = { type: string, payload: any }
-type TextTypeExtractor = (message: string) => TextTypeExtractorValue
+    abstract extractor(message: M): ExtractorValue<ET, EP>
+    abstract injector(type: O, payload: P): IV
+}
 
-type TextTypeInjector<T extends string> = (type: T, payload: any) => string
+export class BaseByteHandler<I extends number, O extends number>
+extends BaseHandler<I, O, ArrayBuffer, ArrayBuffer, number, DataView, ArrayBuffer>
+{
+    override extractor(message: ArrayBuffer) {
+        const type = new Uint8Array(message)[0]
+        const payload = new DataView(message, 1, message.byteLength - 1)
 
-export class SocketBuilder<
+        return { type, payload }
+    }
+    
+    override injector(type: O, payload: ArrayBuffer) {
+        const buffer = new ArrayBuffer(1 + payload.byteLength)
+        const message = new Uint8Array(buffer)
+
+        message[0] = type
+        message.set(new Uint8Array(payload), 1)
+
+        return message.buffer
+    }
+}
+
+export class BaseTextHandler<I extends string, O extends string>
+extends BaseHandler<I, O, string, any, string, any, string>
+{
+    override extractor(message: string) {
+        const { type, payload } = JSON.parse(message)
+        return { type, payload }
+    }
+
+    override injector(type: O, payload: any) {
+        const message = { type, payload }
+        return JSON.stringify(message)
+    }
+}
+
+interface SocketConfig<
     TextIn extends string = never,
     TextOut extends string = never,
     ByteIn extends number = never,
     ByteOut extends number = never
 > {
-    private url: string
+    reconnectMaxAttempts?: number | null
+    reconnectDelayMs?: number | null
 
-    private reconnectMaxAttempts: number | null = null
-    private reconnectDelayMs: number | null = null
-
-    private textExtractor: TextTypeExtractor | null = null
-    private textInjector: TextTypeInjector<TextOut> | null = null
-    private byteExtractor: ByteTypeExtractor| null = null
-    private byteInjector: ByteTypeInjector<ByteOut> | null = null
-
-    constructor(url: string) {
-        this.url = url
-    }
-
-    autoReconnect(maxAttempts: number = 10, delayMs: number = 500) {
-        this.reconnectMaxAttempts = maxAttempts
-        this.reconnectDelayMs = delayMs
-
-        return this
-    }
-
-    textHandler<SI extends string, SO extends string>(
-        extractor: TextTypeExtractor,
-        injector: TextTypeInjector<SO>
-    ): SocketBuilder<SI, SO, ByteIn, ByteOut> {
-        this.textExtractor = extractor
-        this.textInjector = injector as any
-        return this as any
-    }
-
-    byteHandler<BI extends number, BO extends number>(
-        extractor: ByteTypeExtractor,
-        injector: ByteTypeInjector<BO>
-    ): SocketBuilder<TextIn, TextOut, BI, BO> {
-        this.byteExtractor = extractor
-        this.byteInjector = injector as any
-        return this as any
-    }
-
-    build() {
-        return new Socket<TextIn, TextOut, ByteIn, ByteOut>(
-            this.url,
-            this.reconnectMaxAttempts,
-            this.reconnectDelayMs,
-            this.textExtractor,
-            this.textInjector,
-            this.byteExtractor,
-            this.byteInjector
-        )
-    }
+    textHandler?: BaseTextHandler<TextIn, TextOut> | null
+    byteHandler?: BaseByteHandler<ByteIn, ByteOut> | null
 }
 
 export type SocketStatus =
@@ -78,7 +71,7 @@ export type SocketStatus =
 
 type StatusCallback = (status: SocketStatus) => void
 
-class Socket<
+export class Socket<
     TextIn extends string = never,
     TextOut extends string = never,
     ByteIn extends number = never,
@@ -89,29 +82,17 @@ class Socket<
     private reconnectMaxAttempts: number | null = null
     private reconnectDelayMs: number | null = null
 
-    private textExtractor: TextTypeExtractor | null = null
-    private textInjector: TextTypeInjector<TextOut> | null = null
-    private byteExtractor: ByteTypeExtractor | null = null
-    private byteInjector: ByteTypeInjector<ByteOut> | null = null
+    private textHandler: BaseTextHandler<TextIn, TextOut> | null = null
+    private byteHandler: BaseByteHandler<ByteIn, ByteOut> | null = null
 
-    constructor(
-        url: string,
-        reconnectMaxAttempts: number | null,
-        reconnectDelayMs: number | null,
-        textExtractor: TextTypeExtractor | null,
-        textInjector: TextTypeInjector<TextOut> | null,
-        byteExtractor: ByteTypeExtractor | null,
-        byteInjector: ByteTypeInjector<ByteOut> | null
-    ) {
+    constructor(url: string, config?: SocketConfig<TextIn, TextOut, ByteIn, ByteOut>) {
         this.url = url
 
-        this.reconnectMaxAttempts = reconnectMaxAttempts
-        this.reconnectDelayMs = reconnectDelayMs
-        
-        this.textExtractor = textExtractor
-        this.textInjector = textInjector
-        this.byteExtractor = byteExtractor
-        this.byteInjector = byteInjector
+        this.reconnectMaxAttempts = config?.reconnectMaxAttempts ?? null
+        this.reconnectDelayMs = config?.reconnectDelayMs ?? null
+
+        this.textHandler = config?.textHandler ?? null
+        this.byteHandler = config?.byteHandler ?? null
     }
 
     private ws: WebSocket | null = null
@@ -225,27 +206,27 @@ class Socket<
 
         this.ws.onmessage = (e) => {
             if (typeof e.data === "string") {
-                this.textHandler(e.data)
+                this.textMessageHandler(e.data)
             } else if (e.data instanceof ArrayBuffer) {
-                this.byteHandler(e.data)
+                this.byteMessageHandler(e.data)
             }
         }
 
         return deferred.promise
     }
 
-    private textHandler(message: string) {
+    private textMessageHandler(message: string) {
         try {
-            const { type, payload } = this.textExtractor!(message)
+            const { type, payload } = this.textHandler!.extractor(message)
             this.textEmitter.emit(type, payload)
         } catch {
             this.textUnhandledEmitter.emit("", message)
         }
     }
 
-    private byteHandler(message: ArrayBuffer) {
+    private byteMessageHandler(message: ArrayBuffer) {
         try {
-            const { type, payload } = this.byteExtractor!(message)
+            const { type, payload } = this.byteHandler!.extractor(message)
             this.byteEmitter.emit(String(type), payload)
         } catch {
             this.byteUnhandledEmitter.emit("", new DataView(message))
@@ -273,7 +254,7 @@ class Socket<
         },
 
         send: (type: TextOut, payload: any) => {
-            if (!this.textInjector) {
+            if (!this.textHandler) {
                 throw Error("textInjector not defined")
             }
 
@@ -281,7 +262,7 @@ class Socket<
                 throw Error("connect method was not invoked")
             }
 
-            this.ws.send(this.textInjector(type, payload))
+            this.ws.send(this.textHandler.injector(type, payload))
         },
 
         sendRaw: (message: string) => {
@@ -309,7 +290,7 @@ class Socket<
         },
 
         send: (type: ByteOut, payload: ArrayBuffer) => {
-            if (!this.byteInjector) {
+            if (!this.byteHandler) {
                 throw Error("byteInjector not defined")
             }
 
@@ -317,7 +298,7 @@ class Socket<
                 throw Error("connect method was not invoked")
             }
 
-            this.ws.send(this.byteInjector(type, payload))
+            this.ws.send(this.byteHandler.injector(type, payload))
         },
 
         sendRaw: (message: ArrayBuffer) => {

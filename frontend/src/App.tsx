@@ -1,8 +1,14 @@
 import "./App.style.scss"
 import { useEffect } from "react"
 import { Packet } from "./socket/packet"
-import { socket } from "./socket"
 import { ByteInput, ByteOutput } from "./socket/types"
+import { BaseByteHandler, Socket } from "./socket/impl"
+
+export const socket = new Socket("ws://localhost:3001/api/ws", {
+    reconnectDelayMs: 500,
+    reconnectMaxAttempts: 10,
+    byteHandler: new BaseByteHandler<ByteInput, ByteOutput>()
+})
 
 export function App() {
     useEffect(() => {
